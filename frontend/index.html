@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Precision Agriculture Monitoring System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!--
+      Google Maps (region selection) - replace YOUR_GOOGLE_MAPS_API_KEY with a real key.
+      DrawingManager lets the user draw a rectangle/polygon; we take the centroid for weather lookup.
+      Use version 3.64 so the deprecated drawing library remains available.
+    -->
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAkLScFUy8eh1Rl_ApWIGrUPYkgd5Ku8y8&v=3.64&libraries=drawing&callback=initMap"
+    defer></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon"><i class="fa-solid fa-seedling"></i></div>
+        <div class="brand-text">
+          <div class="brand-title">PlantSense AI</div>
+          <div class="brand-subtitle">Precision Agriculture Monitor</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item active" data-page="upload">
+          <i class="fa-solid fa-map-location-dot"></i>
+          <span>Select Region</span>
+        </button>
+        <button class="nav-item" data-page="result">
+          <i class="fa-solid fa-stethoscope"></i>
+          <span>Area Health Result</span>
+        </button>
+        <button class="nav-item" data-page="sensors">
+          <i class="fa-solid fa-wave-square"></i>
+          <span>Sensor Graphs</span>
+        </button>
+        <button class="nav-item" data-page="prediction">
+          <i class="fa-solid fa-diagram-project"></i>
+          <span>Risk Prediction</span>
+        </button>
+        <button class="nav-item" data-page="alerts">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span>Alerts Panel</span>
+        </button>
+        <button class="nav-item" data-page="report" id="navReportBtn">
+          <i class="fa-solid fa-file-arrow-down"></i>
+          <span>Download Report</span>
+        </button>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <div class="chip"><i class="fa-solid fa-shield-dog"></i><span>AI-assisted</span></div>
+          <div class="chip"><i class="fa-solid fa-location-dot"></i><span>Field-level insights</span></div>
+        </div>
+        <div class="topbar-right">
+          <div class="status">
+            <span class="dot"></span>
+            <span id="statusText">Ready</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="grid">
+        <!-- Select Region -->
+        <div id="page-upload" class="page active">
+          <div class="card hero-card">
+            <div class="card-glow"></div>
+            <h2><i class="fa-solid fa-globe"></i> Select a region to monitor</h2>
+            <p class="muted">
+              Draw a rectangle on the map (Google Maps Drawing Manager). We’ll fetch weather for the selected area and
+              compute risk + alerts.
+              If Google Maps API is not configured, use the manual coordinates below.
+            </p>
+
+            <div class="row">
+              <div class="control" style="flex: 1 1 520px;">
+                <label class="label"><i class="fa-solid fa-draw-polygon"></i> Region selection</label>
+                <div id="map" class="map-container"></div>
+                <div class="help">Tip: draw a rectangle. We’ll use its center point for weather lookup.</div>
+              </div>
+
+              <div class="control" style="flex: 1 1 300px; min-width: 280px;">
+                <label class="label"><i class="fa-solid fa-location-crosshairs"></i> Selected location</label>
+                <div id="selectedAreaText" class="muted small">No region selected yet.</div>
+
+                <div style="height: 14px;"></div>
+
+                <label class="label"><i class="fa-solid fa-keyboard"></i> Manual fallback</label>
+                <input class="file" id="manualLatInput" type="number" step="0.0001"
+                  placeholder="Latitude (e.g. 37.7749)" />
+                <div style="height: 10px;"></div>
+                <input class="file" id="manualLonInput" type="number" step="0.0001"
+                  placeholder="Longitude (e.g. -122.4194)" />
+
+                <div style="height: 14px;"></div>
+                <button class="btn primary" id="analyzeRegionBtn">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i>
+                  Check Area Risk
+                </button>
+
+                <div class="help">
+                  Weather integration uses <code>OPENWEATHER_API_KEY</code> (dummy data if not set).
+                </div>
+              </div>
+            </div>
+
+            <div class="quick">
+              <div class="quick-item">
+                <i class="fa-solid fa-bolt"></i>
+                <span>Fast area risk</span>
+              </div>
+              <div class="quick-item">
+                <i class="fa-solid fa-lock"></i>
+                <span>No ground truth required</span>
+              </div>
+              <div class="quick-item">
+                <i class="fa-solid fa-layer-group"></i>
+                <span>Weather + heuristics</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">
+              <i class="fa-solid fa-wand-magic"></i> Demo tips
+            </div>
+            <ul class="bullets">
+              <li>Select a region (rectangle) then click <b>Check Area Risk</b>.</li>
+              <li>Alerts appear in <b>Alerts Panel</b> automatically.</li>
+              <li>(Optional) Upload a sensor CSV under <b>Sensor Graphs</b> to compare past trends.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Area Health Result -->
+        <div id="page-result" class="page">
+          <div class="card">
+            <div class="card-title">
+              <i class="fa-solid fa-stethoscope"></i> Area Health Result
+            </div>
+
+            <!-- Crop Image Image Upload Panel -->
+            <div class="row">
+              <div class="control" style="flex: 1 1 100%;">
+                <label class="label"><i class="fa-solid fa-leaf"></i> Upload Crop Image for Analysis</label>
+                <div style="display: flex; gap: 12px; align-items: flex-end;">
+                  <div style="flex-grow: 1;">
+                    <input class="file" id="imageInput" type="file" accept="image/*" />
+                  </div>
+                  <button class="btn primary" id="analyzeImageBtn">
+                    <i class="fa-solid fa-microscope"></i> Analyze Image
+                  </button>
+                </div>
+                <div class="help">Upload an image of a leaf or field to detect diseases and map vegetation density.
+                </div>
+              </div>
+            </div>
+            <div style="height:14px;"></div>
+
+            <div class="row two">
+              <div class="box">
+                <div class="box-title"><i class="fa-solid fa-user-check"></i> Classification</div>
+                <div id="classificationCard" class="big-pill neutral">
+                  Upload image or check area risk
+                </div>
+                <div class="stats" id="imageStats"></div>
+              </div>
+              <!-- Image Heatmap panel -->
+              <div class="box" id="heatmapBox"
+                style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 360px; text-align: center;">
+                <div class="muted small"><i class="fa-solid fa-image"></i> NDVI Heatmap will appear here</div>
+              </div>
+            </div>
+
+            <!-- AgroMonitoring satellite data panel -->
+            <div style="height:14px;"></div>
+            <div class="box" id="agroDataBox"
+              style="border:1px solid rgba(94,230,172,.15); border-radius:12px; padding:16px; background:rgba(30,111,78,.07);">
+              <div class="box-title" style="margin-bottom:8px;">
+                <i class="fa-solid fa-satellite"></i> AgroMonitoring Data
+              </div>
+              <div class="row two">
+                <div style="flex: 1;">
+                  <div class="muted small">Run "Check Area Risk" on the map page to load real satellite NDVI and soil
+                    data.</div>
+                </div>
+                <div class="box" id="weatherSnapshotBox"
+                  style="flex: 1; padding: 12px; border-radius: 8px; background: rgba(0,0,0,0.2);">
+                  <div class="box-title" style="font-size: 13px; margin-bottom: 6px;"><i
+                      class="fa-solid fa-cloud-sun"></i> Weather snapshot</div>
+                  <div id="weatherSnapshot" class="muted" style="font-size: 12px; line-height: 1.5;">
+                    Weather data will appear here.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+
+        <!-- Sensor Data Graphs -->
+        <div id="page-sensors" class="page">
+          <div class="card">
+            <div class="card-title">
+              <i class="fa-solid fa-wave-square"></i> Sensor Data Graphs
+            </div>
+
+            <div class="row">
+              <div class="control">
+                <label class="label"><i class="fa-solid fa-file-csv"></i> Upload sensor CSV</label>
+                <input class="file" id="sensorInput" type="file" accept=".csv" />
+                <div class="help">Expected columns: soil_moisture, temperature, humidity</div>
+              </div>
+              <div class="control">
+                <label class="label">Action</label>
+                <button class="btn primary" id="analyzeSensorsBtn">
+                  <i class="fa-solid fa-chart-line"></i>
+                  Analyze Sensors
+                </button>
+                <button class="btn secondary" id="loadSampleSensorsBtn"
+                  style="margin-left: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #fff; cursor: pointer; border-radius: 6px; padding: 0 12px; height: 36px; font-size: 13px;">
+                  <i class="fa-solid fa-flask"></i>
+                  Load Sample
+                </button>
+              </div>
+            </div>
+
+            <div class="row two">
+              <div class="box">
+                <div class="box-title"><i class="fa-solid fa-chart-area"></i> Trends (past)</div>
+                <div class="chart-container" style="height: 200px; position: relative;">
+                  <canvas id="sensorTrendsChart"></canvas>
+                </div>
+              </div>
+              <div class="box">
+                <div class="box-title"><i class="fa-solid fa-sliders"></i> Sensor stats</div>
+                <div class="stats" id="sensorStats"></div>
+                <div class="muted small">
+                  These stats are used for the fusion rules.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Risk Prediction -->
+        <div id="page-prediction" class="page">
+          <div class="card">
+            <div class="card-title">
+              <i class="fa-solid fa-diagram-project"></i> Risk Prediction
+            </div>
+
+            <div class="row two">
+              <!-- Left: Fusion Result -->
+              <div class="box">
+                <div class="box-title"><i class="fa-solid fa-wand-magic-sparkles"></i> Fusion risk & alerts</div>
+                <div id="fusionCard" class="big-pill neutral">
+                  Select an area and click "Check Area Risk" to compute.
+                </div>
+                <div class="reportSummary" id="reportSummary" style="margin-top:12px; font-size:13px;">
+                  Ready for fusion analysis.
+                </div>
+                <div style="margin-top:14px; display:flex; gap:8px;">
+                  <button class="btn primary" id="fuseRiskBtn"><i class="fa-solid fa-bolt"></i> Fuse Result</button>
+                  <button class="btn" id="forecastBtn"><i class="fa-solid fa-crystal-ball"></i> Forecast Future
+                    Stress</button>
+                </div>
+              </div>
+
+              <!-- Right: Chart -->
+              <div class="box" style="min-height: 240px; display: flex; flex-direction: column;">
+                <div class="box-title"><i class="fa-solid fa-chart-line"></i> Stress forecast (24h)</div>
+                <div class="chart-container" style="flex: 1; position: relative; min-height: 180px;">
+                  <canvas id="forecastChart"></canvas>
+                </div>
+                <div class="help" style="margin-top:8px;">Weather-driven stress trend.</div>
+              </div>
+            </div>
+
+            <div class="row two" style="margin-top:14px;">
+              <div class="box">
+                <div class="box-title"><i class="fa-solid fa-bell"></i> Critical Alerts</div>
+                <div class="alerts" id="alertsList">
+                  <div class="muted small">No active alerts. Run analysis to detect risks.</div>
+                </div>
+              </div>
+              <div class="box">
+                <div class="box-title"><i class="fa-solid fa-lightbulb"></i> Recommendations</div>
+                <div class="recommendations" id="recommendations">
+                  <div class="muted small">Suggestions will appear based on detected stress factors.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alerts Panel -->
+        <div id="page-alerts" class="page">
+          <div class="card">
+            <div class="card-title">
+              <i class="fa-solid fa-triangle-exclamation"></i> Alerts Panel
+            </div>
+            <div class="row two">
+              <div class="box">
+                <div class="box-title"><i class="fa-solid fa-bullhorn"></i> Live alerts</div>
+                <div id="alertsList" class="alerts"></div>
+              </div>
+              <div class="box">
+                <div class="box-title"><i class="fa-solid fa-circle-info"></i> Recommendations</div>
+                <div id="recommendations" class="recommendations"></div>
+              </div>
+            </div>
+            <div style="margin-top: 20px; text-align: center;">
+              <button class="btn primary" id="downloadReportFromAlertsBtn" style="padding: 10px 28px; font-size: 14px;">
+                <i class="fa-solid fa-file-arrow-down"></i> Download Full Report
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Download Report Page -->
+        <div id="page-report" class="page">
+          <div class="card hero-card">
+            <div class="card-glow"></div>
+            <h2><i class="fa-solid fa-file-lines"></i> Download Analysis Report</h2>
+            <p class="muted">
+              Generate a comprehensive report consolidating all available analysis results — field risk, sensor data,
+              NDVI stats, fusion score, stress forecast and actionable recommendations.
+            </p>
+            <div id="reportPreview"
+              style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 24px; margin: 20px 0; min-height: 160px;">
+              <div class="muted" id="reportPreviewPlaceholder">
+                <i class="fa-solid fa-circle-info"></i>&nbsp; Run at least one analysis (Check Area Risk, Sensor Upload,
+                or Fusion) to generate a report.
+              </div>
+              <div id="reportPreviewContent" style="display:none;">
+                <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px;" id="reportSummaryCards"></div>
+                <div
+                  style="font-size:13px; color: rgba(255,255,255,0.6); border-top: 1px solid rgba(255,255,255,0.08); padding-top:12px;"
+                  id="reportAlertsPreview"></div>
+              </div>
+            </div>
+            <div style="display:flex; gap:12px; flex-wrap:wrap;">
+              <button class="btn primary" id="downloadReportBtn"
+                style="padding: 12px 32px; font-size: 15px; letter-spacing: 0.3px;">
+                <i class="fa-solid fa-file-arrow-down"></i>&nbsp; Download HTML Report
+              </button>
+              <button class="btn" id="refreshReportBtn"
+                style="padding: 12px 24px; font-size: 14px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: #fff; border-radius: 8px; cursor: pointer;">
+                <i class="fa-solid fa-rotate"></i>&nbsp; Refresh Preview
+              </button>
+            </div>
+            <div class="help" style="margin-top:12px;">The report is a self-contained HTML file you can open in any
+              browser or print as a PDF.</div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <div>Built for a college project demo. Replace dummy models with CNN/LSTM for production-grade accuracy.</div>
+      </footer>
+    </main>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+
+</html>
