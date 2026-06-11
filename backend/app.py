@@ -177,10 +177,12 @@ def create_app() -> Flask:
 app = create_app()
 
 
-if __name__ == "__main__":
-    # Use 0.0.0.0 if you want to expose it beyond localhost.
-    # Keep debug/reloader off for stable prototype behavior in constrained environments.
-    host = os.environ.get("HOST", "127.0.0.1")
-    port = int(os.environ.get("PORT", "5000"))
-    app.run(host=host, port=port, debug=False, use_reloader=False)
+host = os.environ.get("HOST", "0.0.0.0")
+port = int(os.environ.get("PORT", 10000))
 
+app.run(
+    host=host,
+    port=port,
+    debug=False,
+    use_reloader=False
+)
