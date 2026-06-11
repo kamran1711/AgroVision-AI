@@ -38,7 +38,7 @@ let latestFusion = null;
 let selectedArea = null;       // { lat, lon }
 let selectedPolygonCoords = null;  // [[lon, lat], ...] GeoJSON ring (from map draw)
 
-const BACKEND_BASE_URL = "http://127.0.0.1:10000";
+const BACKEND_BASE_URL = "https://agrovision-ai-qp9d.onrender.com";
 function apiUrl(path) {
   return `${BACKEND_BASE_URL}${path}`;
 }
