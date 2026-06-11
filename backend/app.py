@@ -13,6 +13,11 @@ except ImportError:
     pass  # dotenv not installed — use system env vars or export manually
 
 from flask import Flask, jsonify, request, send_from_directory
+try:
+    # Prefer using Flask-Cors if available in the environment (better for deployed CORS handling)
+    from flask_cors import CORS
+except Exception:
+    CORS = None
 
 from backend.ai.agromonitoring import analyze_field as analyze_field_agro
 from backend.ai.fusion import fuse_risk
@@ -28,6 +33,17 @@ FRONTEND_DIR = ROOT / "frontend"
 
 def create_app() -> Flask:
     app = Flask(__name__, static_folder=str(FRONTEND_DIR), static_url_path="")
+
+    # Enable CORS for API endpoints. If Flask-Cors is installed, use it; otherwise keep the manual header fallback.
+    if CORS:
+        CORS(app, resources={r"/api/*": {"origins": "*"}})
+    else:
+        @app.after_request
+        def allow_cors(response: Any) -> Any:
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+            return response
 
     @app.get("/")
     def index() -> Any:
