@@ -38,6 +38,10 @@ let latestFusion = null;
 let selectedArea = null;       // { lat, lon }
 let selectedPolygonCoords = null;  // [[lon, lat], ...] GeoJSON ring (from map draw)
 
+const BACKEND_BASE_URL = "http://127.0.0.1:10000";
+function apiUrl(path) {
+  return `${BACKEND_BASE_URL}${path}`;
+}
 
 // ---------------- Navigation ----------------
 function showPage(pageId) {
@@ -339,7 +343,7 @@ async function checkFieldRisk({ lat, lon, horizon = 12 }) {
 
   let res;
   try {
-    res = await fetch("/api/analyze-field", {
+    res = await fetch(apiUrl("/api/analyze-field"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -389,6 +393,8 @@ async function checkFieldRisk({ lat, lon, horizon = 12 }) {
   // ── AgroMonitoring NDVI + soil panel ───────────────────────────────────
   renderAgroData(data);
 
+  const src = data.source || "";
+
   // ── Satellite Imagery Heatmap ──────────────────────────────────────────
   if (data.imagery_url) {
     heatmapBox.innerHTML = `
@@ -396,11 +402,17 @@ async function checkFieldRisk({ lat, lon, horizon = 12 }) {
       <img src="${data.imagery_url}" style="max-width: 100%; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);" />
       <div class="muted" style="font-size:11px; margin-top:4px;">Imagery provided by AgroMonitoring</div>
     `;
-  } else if (source === "agromonitoring") {
+  } else if (src === "agromonitoring") {
     heatmapBox.innerHTML = `
       <div class="muted small">
         <i class="fa-solid fa-hourglass-half"></i> Processing Satellite Data...<br>
         <span style="font-size:10px;">New polygons take 5-10 mins to index.</span>
+      </div>
+    `;
+  } else {
+    heatmapBox.innerHTML = `
+      <div class="muted small">
+        <i class="fa-solid fa-image"></i> No satellite imagery available.
       </div>
     `;
   }
@@ -409,7 +421,6 @@ async function checkFieldRisk({ lat, lon, horizon = 12 }) {
   renderFusionRisk(data);
   if (data.forecast) renderForecast(data.forecast);
 
-  const src = data.source || "";
   const srcLabel = src === "agromonitoring" ? "🛰️ AgroMonitoring" : "🌤️ Weather-only";
   setStatus(`Analysis complete — ${srcLabel}`);
 
@@ -494,7 +505,7 @@ async function analyzeSensors() {
   const fd = new FormData();
   fd.append("csv", file);
 
-  const res = await fetch("/api/analyze-sensors", { method: "POST", body: fd });
+  const res = await fetch(apiUrl("/api/analyze-sensors"), { method: "POST", body: fd });
   if (!res.ok) {
     setStatus("Sensor analysis failed.");
     return;
@@ -518,7 +529,7 @@ async function analyzeSensors() {
 async function loadSampleSensors() {
   setStatus("Loading sample sensor data...");
   try {
-    const res = await fetch("/api/sample-sensors");
+    const res = await fetch(apiUrl("/api/sample-sensors"));
     if (!res.ok) throw new Error("Failed to fetch sample data");
 
     const data = await res.json();
@@ -554,7 +565,7 @@ async function analyzeImage() {
 
   let res;
   try {
-    res = await fetch("/api/analyze-image", { method: "POST", body: fd });
+    res = await fetch(apiUrl("/api/analyze-image"), { method: "POST", body: fd });
   } catch (_) {
     setStatus("Network error — check backend is running.");
     return;
@@ -621,7 +632,7 @@ async function fuseRisk() {
   };
 
   try {
-    const res = await fetch("/api/fuse", {
+    const res = await fetch(apiUrl("/api/fuse"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -644,7 +655,7 @@ async function forecastFutureStress() {
 
   setStatus("Generating 24h stress forecast...");
   try {
-    const res = await fetch("/api/predict-stress", {
+    const res = await fetch(apiUrl("/api/predict-stress"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ field_analysis: latestFieldAnalysis, horizon: 24 })
